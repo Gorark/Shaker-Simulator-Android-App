@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "MyFirstSensorApp"
+rootProject.name = "Barista Simulator"
 include(":app")
  

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myfirstsensorapp"
+    namespace = "com.example.baristasimulator"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.myfirstsensorapp"
+        applicationId = "com.example.baristasimulator"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
