@@ -60,6 +60,7 @@ fun SensorsScreen() {
     var proximity by remember { mutableStateOf<Float?>(null) }
     var accelerometer by remember { mutableStateOf<List<Float>?>(null) }
     var shakerBackground by remember { mutableStateOf(R.drawable.cocktail_idle) }
+    var shakeCounter by remember { mutableStateOf(0) }
     val backgroundOffsetY by rememberInfiniteTransition().animateFloat(
         initialValue = -20f,
         targetValue = 20f,
@@ -70,9 +71,15 @@ fun SensorsScreen() {
         if (values == null || values.size < 3) return R.drawable.cocktail_idle
 
         val verticalMovement = kotlin.math.abs(values[1] - 9.8)
+        shakeCounter = if (verticalMovement > 3) {
+            (shakeCounter + 1).coerceAtMost(10)
+        } else {
+            (shakeCounter - 1).coerceAtLeast(0)
+        }
+
         return when {
-            verticalMovement > 3 -> R.drawable.cocktail_shaker_bg
-            verticalMovement < 0.5 -> R.drawable.cocktail_idle
+            shakeCounter >= 3 -> R.drawable.cocktail_shaker_bg
+            shakeCounter == 0 -> R.drawable.cocktail_idle
             else -> previousBackground
         }
     }
@@ -88,8 +95,7 @@ fun SensorsScreen() {
                     Sensor.TYPE_LIGHT -> light = event.values.firstOrNull()
                     Sensor.TYPE_PROXIMITY -> proximity = event.values.firstOrNull()
                     Sensor.TYPE_ACCELEROMETER -> {
-                        val values = event.values.toList()
-                        accelerometer = values
+                        accelerometer = event.values.toList()
                         shakerBackground = shake(values, shakerBackground)
                     }
                 }
