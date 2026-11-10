@@ -67,6 +67,22 @@ fun SensorsScreen() {
         animationSpec = infiniteRepeatable(tween(350), RepeatMode.Reverse)
     )
 
+    // Check if an object is near the proximity sensor
+    // "Boolean" : la fonction renvoie true ou false
+    fun checkProximity(value: Float?): Boolean {
+        if (value == null || proximitySensor == null) return false
+
+        return value >= 0f && value < minOf(5f, proximitySensor.maximumRange)
+    }
+
+    // Describe the light level in the bar
+    // "String" : la fonction renvoie un texte
+    fun lightMessage(value: Float?): String {
+        if (value == null) return "Luminosité : en attente"
+
+        return if (value < 1000f) { "Ambiance : bar sombre" } else { "Ambiance : bar éclairé" }
+    }
+
     fun shake(values: List<Float>?, previousBackground: Int): Int {
         if (values == null || values.size < 3) return R.drawable.cocktail_idle
 
@@ -96,7 +112,7 @@ fun SensorsScreen() {
                     Sensor.TYPE_PROXIMITY -> proximity = event.values.firstOrNull()
                     Sensor.TYPE_ACCELEROMETER -> {
                         accelerometer = event.values.toList()
-                        shakerBackground = shake(values, shakerBackground)
+                        shakerBackground = shake(accelerometer, shakerBackground)
                     }
                 }
             }
@@ -125,6 +141,10 @@ fun SensorsScreen() {
         onDispose { sensorManager.unregisterListener(listener) }
     }
 
+    // "&&" : les deux conditions doivent être vraies en même temps
+    val canShake = checkProximity(proximity) && shakerBackground == R.drawable.cocktail_shaker_bg
+    val displayedBackground = if (canShake) R.drawable.cocktail_shaker_bg else R.drawable.cocktail_idle
+
     // UI
     // For more information about layout using composable, see Lecture 3
     // https://developer.android.com/courses/pathways/android-basics-compose-unit-1-pathway-3
@@ -133,10 +153,10 @@ fun SensorsScreen() {
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(shakerBackground),
+            painter = painterResource(displayedBackground),
             contentDescription = null,
             modifier = Modifier.fillMaxSize().graphicsLayer {
-                val isShaking = shakerBackground == R.drawable.cocktail_shaker_bg
+                val isShaking = canShake
                 translationY = if (isShaking) backgroundOffsetY else 0f
                 scaleY = if (isShaking) 1.1f else 1f
             },
@@ -149,7 +169,7 @@ fun SensorsScreen() {
         ) {
             Text("Règles", fontSize = 26.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
             Text("Pour shaker la boisson: \n1) tiens le téléphone à deux mains \n 2) secoue-le de haut en bas.\n Les 2 doivent être fait au même temps", fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
-            Text(text = if (shakerBackground == R.drawable.cocktail_shaker_bg) { "\nLe verre est actuellement en mouvement." } else { "\nLe verre est actuellement à l'arrêt." },
+            Text(text = if (canShake) { "\nLe verre est actuellement en mouvement." } else { "\nLe verre est actuellement à l'arrêt." },
                 fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
         }
         Column(
@@ -158,9 +178,11 @@ fun SensorsScreen() {
         ) {
             Text("Sensors:", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
             Text("Light: $light lx", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
+            Text(lightMessage(light), fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
             Text("Proximité: ${proximity?.let { String.format("%.1f cm", it) } ?: "-- cm"}", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
+            Text(text = if (checkProximity(proximity)) { "Objet proche détecté" } else { "Aucun objet proche détecté" },
+                fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
             Text("Acceleromètre: ${accelerometer?.joinToString(", ") { String.format("%.1f", it) } ?: "--"} m/s²", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
         }
     }
 }
-

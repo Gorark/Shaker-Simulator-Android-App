@@ -1,0 +1,85 @@
+warning: in the working copy of 'app/src/main/java/com/example/baristasimulator/MainActivity.kt', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/app/src/main/java/com/example/baristasimulator/MainActivity.kt b/app/src/main/java/com/example/baristasimulator/MainActivity.kt[m
+[1mindex 67cdc16..2782f86 100644[m
+[1m--- a/app/src/main/java/com/example/baristasimulator/MainActivity.kt[m
+[1m+++ b/app/src/main/java/com/example/baristasimulator/MainActivity.kt[m
+[36m@@ -67,6 +67,22 @@[m [mfun SensorsScreen() {[m
+         animationSpec = infiniteRepeatable(tween(350), RepeatMode.Reverse)[m
+     )[m
+ [m
+[32m+[m[32m    // Check if an object is near the proximity sensor[m
+[32m+[m[32m    // "Boolean" : la fonction renvoie true ou false[m
+[32m+[m[32m    fun checkProximity(value: Float?): Boolean {[m
+[32m+[m[32m        if (value == null || proximitySensor == null) return false[m
+[32m+[m
+[32m+[m[32m        return value >= 0f && value < minOf(5f, proximitySensor.maximumRange)[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    // Describe the light level in the bar[m
+[32m+[m[32m    // "String" : la fonction renvoie un texte[m
+[32m+[m[32m    fun lightMessage(value: Float?): String {[m
+[32m+[m[32m        if (value == null) return "Luminosité : en attente"[m
+[32m+[m
+[32m+[m[32m        return if (value < 1000f) { "Ambiance : bar sombre" } else { "Ambiance : bar éclairé" }[m
+[32m+[m[32m    }[m
+[32m+[m
+     fun shake(values: List<Float>?, previousBackground: Int): Int {[m
+         if (values == null || values.size < 3) return R.drawable.cocktail_idle[m
+ [m
+[36m@@ -96,7 +112,7 @@[m [mfun SensorsScreen() {[m
+                     Sensor.TYPE_PROXIMITY -> proximity = event.values.firstOrNull()[m
+                     Sensor.TYPE_ACCELEROMETER -> {[m
+                         accelerometer = event.values.toList()[m
+[31m-                        shakerBackground = shake(values, shakerBackground)[m
+[32m+[m[32m                        shakerBackground = shake(accelerometer, shakerBackground)[m
+                     }[m
+                 }[m
+             }[m
+[36m@@ -125,6 +141,10 @@[m [mfun SensorsScreen() {[m
+         onDispose { sensorManager.unregisterListener(listener) }[m
+     }[m
+ [m
+[32m+[m[32m    // "&&" : les deux conditions doivent être vraies en même temps[m
+[32m+[m[32m    val canShake = checkProximity(proximity) && shakerBackground == R.drawable.cocktail_shaker_bg[m
+[32m+[m[32m    val displayedBackground = if (canShake) R.drawable.cocktail_shaker_bg else R.drawable.cocktail_idle[m
+[32m+[m
+     // UI[m
+     // For more information about layout using composable, see Lecture 3[m
+     // https://developer.android.com/courses/pathways/android-basics-compose-unit-1-pathway-3[m
+[36m@@ -133,10 +153,10 @@[m [mfun SensorsScreen() {[m
+         contentAlignment = Alignment.Center[m
+     ) {[m
+         Image([m
+[31m-            painter = painterResource(shakerBackground),[m
+[32m+[m[32m            painter = painterResource(displayedBackground),[m
+             contentDescription = null,[m
+             modifier = Modifier.fillMaxSize().graphicsLayer {[m
+[31m-                val isShaking = shakerBackground == R.drawable.cocktail_shaker_bg[m
+[32m+[m[32m                val isShaking = canShake[m
+                 translationY = if (isShaking) backgroundOffsetY else 0f[m
+                 scaleY = if (isShaking) 1.1f else 1f[m
+             },[m
+[36m@@ -149,7 +169,7 @@[m [mfun SensorsScreen() {[m
+         ) {[m
+             Text("Règles", fontSize = 26.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)[m
+             Text("Pour shaker la boisson: \n1) tiens le téléphone à deux mains \n 2) secoue-le de haut en bas.\n Les 2 doivent être fait au même temps", fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)[m
+[31m-            Text(text = if (shakerBackground == R.drawable.cocktail_shaker_bg) { "\nLe verre est actuellement en mouvement." } else { "\nLe verre est actuellement à l'arrêt." },[m
+[32m+[m[32m            Text(text = if (canShake) { "\nLe verre est actuellement en mouvement." } else { "\nLe verre est actuellement à l'arrêt." },[m
+                 fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)[m
+         }[m
+         Column([m
+[36m@@ -158,9 +178,11 @@[m [mfun SensorsScreen() {[m
+         ) {[m
+             Text("Sensors:", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))[m
+             Text("Light: $light lx", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))[m
+[32m+[m[32m            Text(lightMessage(light), fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))[m
+             Text("Proximité: ${proximity?.let { String.format("%.1f cm", it) } ?: "-- cm"}", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))[m
+[32m+[m[32m            Text(text = if (checkProximity(proximity)) { "Objet proche détecté" } else { "Aucun objet proche détecté" },[m
+[32m+[m[32m                fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))[m
+             Text("Acceleromètre: ${accelerometer?.joinToString(", ") { String.format("%.1f", it) } ?: "--"} m/s²", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))[m
+         }[m
+     }[m
+[31m-}[m
+[31m-[m
+[32m+[m[32m}[m
+\ No newline at end of file[m
