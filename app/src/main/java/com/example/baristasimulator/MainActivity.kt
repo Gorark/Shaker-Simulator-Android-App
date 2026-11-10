@@ -68,15 +68,13 @@ fun SensorsScreen() {
     )
 
     // Check if an object is near the proximity sensor
-    // "Boolean" : la fonction renvoie true ou false
     fun checkProximity(value: Float?): Boolean {
         if (value == null || proximitySensor == null) return false
 
-        return value >= 0f && value < minOf(5f, proximitySensor.maximumRange)
+        return value >= 0f && value < minOf(3f, proximitySensor.maximumRange)//max = 1 cm par test emulateur
     }
 
     // Describe the light level in the bar
-    // "String" : la fonction renvoie un texte
     fun lightMessage(value: Float?): String {
         if (value == null) return "Luminosité : en attente"
 
@@ -156,9 +154,9 @@ fun SensorsScreen() {
             painter = painterResource(displayedBackground),
             contentDescription = null,
             modifier = Modifier.fillMaxSize().graphicsLayer {
-                val isShaking = canShake
-                translationY = if (isShaking) backgroundOffsetY else 0f
-                scaleY = if (isShaking) 1.1f else 1f
+
+                translationY = if (canShake) backgroundOffsetY else 0f
+                scaleY = if (canShake) 1.1f else 1f
             },
             contentScale = ContentScale.Crop
         ) // Lien: https://www.pexels.com/photo/close-up-of-a-cocktail-with-foam-17571849/
@@ -169,7 +167,9 @@ fun SensorsScreen() {
         ) {
             Text("Règles", fontSize = 26.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
             Text("Pour shaker la boisson: \n1) tiens le téléphone à deux mains \n 2) secoue-le de haut en bas.\n Les 2 doivent être fait au même temps", fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
-            Text(text = if (canShake) { "\nLe verre est actuellement en mouvement." } else { "\nLe verre est actuellement à l'arrêt." },
+            Text(text = if (checkProximity(proximity)) { "\n2eme main détectée" } else { "\nAucun objet proche détecté" },
+                fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
+            Text(text = if (canShake) { "Le verre est actuellement en mouvement." } else { "Le verre est actuellement à l'arrêt." },
                 fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
         }
         Column(
@@ -180,8 +180,6 @@ fun SensorsScreen() {
             Text("Light: $light lx", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
             Text(lightMessage(light), fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
             Text("Proximité: ${proximity?.let { String.format("%.1f cm", it) } ?: "-- cm"}", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
-            Text(text = if (checkProximity(proximity)) { "Objet proche détecté" } else { "Aucun objet proche détecté" },
-                fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
             Text("Acceleromètre: ${accelerometer?.joinToString(", ") { String.format("%.1f", it) } ?: "--"} m/s²", fontSize = 18.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
         }
     }
