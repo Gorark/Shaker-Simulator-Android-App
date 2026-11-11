@@ -6,6 +6,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,7 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -27,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.baristasimulator.ui.MyFirstSensorAppTheme
+import kotlinx.coroutines.delay
 //l'image cocktail_idle a été généréee par chatgpt avec l'image shaker en reference
 
 //We create the mainactivity as extension of CompenentActivity similar
@@ -61,10 +65,24 @@ fun SensorsScreen() {
     var accelerometer by remember { mutableStateOf<List<Float>?>(null) }
     var shakerBackground by remember { mutableStateOf(R.drawable.cocktail_idle) }
     var shakeCounter by remember { mutableStateOf(0) }
+
+    // Count complete shakes separately from the movement detector
+    var consecutiveShakes by remember { mutableStateOf(0) }
+    var waitingForReturn by remember { mutableStateOf(false) }
+    var lastShakeTime by remember { mutableStateOf(0L) }
+    var lastCountedShakeTime by remember { mutableStateOf(-250L) }
+
     val backgroundOffsetY by rememberInfiniteTransition().animateFloat(
         initialValue = -20f,
         targetValue = 20f,
         animationSpec = infiniteRepeatable(tween(350), RepeatMode.Reverse)
+    )
+
+    // Cycle through the colors for the rainbow effect
+    val rainbowHue by rememberInfiniteTransition().animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart)
     )
 
     // Check if an object is near the proximity sensor
@@ -85,16 +103,54 @@ fun SensorsScreen() {
         if (values == null || values.size < 3) return R.drawable.cocktail_idle
 
         val verticalMovement = kotlin.math.abs(values[1] - 9.8)
-        shakeCounter = if (verticalMovement > 3) {
+        shakeCounter = if (verticalMovement > 1) {
             (shakeCounter + 1).coerceAtMost(10)
         } else {
             (shakeCounter - 1).coerceAtLeast(0)
         }
 
         return when {
-            shakeCounter >= 3 -> R.drawable.cocktail_shaker_bg
+            shakeCounter >= 1 -> R.drawable.cocktail_shaker_bg
             shakeCounter == 0 -> R.drawable.cocktail_idle
             else -> previousBackground
+        }
+    }
+
+    // Reset the series when the player stops shaking correctly
+    fun resetStreak() {
+        consecutiveShakes = 0
+        waitingForReturn = false
+        lastShakeTime = 0L
+        lastCountedShakeTime = -250L
+    }
+
+    // Count one shake after movement in both directions
+    fun countShake(movement: Float, now: Long) {
+        if (lastShakeTime != 0L && now - lastShakeTime > 1200L) resetStreak()
+
+        if (movement > 1f && !waitingForReturn) {
+            waitingForReturn = true
+            lastShakeTime = now
+        } else if (movement < -1f && waitingForReturn) {
+            // Avoid counting very fast sensor noise several times
+            if (now - lastCountedShakeTime >= 250L) {
+                consecutiveShakes += 1
+                lastCountedShakeTime = now
+            }
+            waitingForReturn = false
+            lastShakeTime = now
+        }
+    }
+
+    // Allow a short pause between two shakes, then reset the series
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(100L)
+            if (lastShakeTime != 0L && SystemClock.elapsedRealtime() - lastShakeTime > 1200L) {
+                resetStreak()
+                shakeCounter = 0
+                shakerBackground = R.drawable.cocktail_idle
+            }
         }
     }
 
@@ -107,10 +163,18 @@ fun SensorsScreen() {
             override fun onSensorChanged(event: SensorEvent) {
                 when (event.sensor.type) {
                     Sensor.TYPE_LIGHT -> light = event.values.firstOrNull()
-                    Sensor.TYPE_PROXIMITY -> proximity = event.values.firstOrNull()
+                    Sensor.TYPE_PROXIMITY -> {
+                        proximity = event.values.firstOrNull()
+                        if (!checkProximity(proximity)) resetStreak()
+                    }
                     Sensor.TYPE_ACCELEROMETER -> {
                         accelerometer = event.values.toList()
                         shakerBackground = shake(accelerometer, shakerBackground)
+                        if (checkProximity(proximity)) {
+                            countShake(event.values[1] - 9.8f, SystemClock.elapsedRealtime())
+                        } else {
+                            resetStreak()
+                        }
                     }
                 }
             }
@@ -141,7 +205,24 @@ fun SensorsScreen() {
 
     // "&&" : les deux conditions doivent être vraies en même temps
     val canShake = checkProximity(proximity) && shakerBackground == R.drawable.cocktail_shaker_bg
-    val displayedBackground = if (canShake) R.drawable.cocktail_shaker_bg else R.drawable.cocktail_idle
+
+    // "||" : une seule condition suffit pour changer l'image
+    val showShaker = checkProximity(proximity) || shakerBackground == R.drawable.cocktail_shaker_bg
+
+    // Les variantes bleues ont été générées avec ChatGPT à partir des images d'origine
+    // Choose the background color according to the light level
+    val displayedBackground = if ((light ?: 0f) < 1000f) {
+        if (showShaker) R.drawable.cocktail_shaker_blue else R.drawable.cocktail_idle_blue
+    } else {
+        if (showShaker) R.drawable.cocktail_shaker_bg else R.drawable.cocktail_idle
+    }
+
+    // Apply the rainbow colors after 30 consecutive shakes
+    val rainbowFilter = if (consecutiveShakes >= 30) {
+        ColorFilter.tint(Color.hsv(rainbowHue, 1f, 1f).copy(alpha = 0.55f), BlendMode.SrcAtop)
+    } else {
+        null
+    }
 
     // UI
     // For more information about layout using composable, see Lecture 3
@@ -153,8 +234,8 @@ fun SensorsScreen() {
         Image(
             painter = painterResource(displayedBackground),
             contentDescription = null,
+            colorFilter = rainbowFilter,
             modifier = Modifier.fillMaxSize().graphicsLayer {
-
                 translationY = if (canShake) backgroundOffsetY else 0f
                 scaleY = if (canShake) 1.1f else 1f
             },
@@ -165,12 +246,19 @@ fun SensorsScreen() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Règles", fontSize = 26.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
-            Text("Pour shaker la boisson: \n1) tiens le téléphone à deux mains \n 2) secoue-le de haut en bas.\n Les 2 doivent être fait au même temps", fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
-            Text(text = if (checkProximity(proximity)) { "\n2eme main détectée" } else { "\nAucun objet proche détecté" },
-                fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)))
-            Text(text = if (canShake) { "Le verre est actuellement en mouvement." } else { "Le verre est actuellement à l'arrêt." },
-                fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
+            // Show the message when proximity and movement are detected together
+            if (canShake) {
+                Text("KEEP SHAKINGGG", fontSize = 30.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
+            } else {
+                // Show the rules when the shake is stopped
+                Text("Règles", fontSize = 26.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
+                Text("Pour shaker la boisson: \n1) tiens le téléphone à deux mains \n 2) secoue-le de haut en bas.\n Les 2 doivent être fait au même temps", fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
+                Text(text = if (checkProximity(proximity)) { "\nObjet proche détecté" } else { "\nAucun objet proche détecté" },
+                    fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
+                Text("Le verre est actuellement à l'arrêt.",
+                    fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
+            }
+            Text("Shakes : $consecutiveShakes", fontSize = 22.sp, color = Color.White, fontFamily = FontFamily(Font(R.font.impact)), textAlign = TextAlign.Center)
         }
         Column(
             modifier = Modifier.align(Alignment.BottomStart).padding(24.dp),
